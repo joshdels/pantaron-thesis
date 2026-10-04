@@ -53,6 +53,7 @@ Develop a feasible, evidence-based land and water resources engineering study us
 - `outputs/`: actual generated maps, charts, and summary results
 - `data/`: datasets added only when needed; preserve originals and document processing
 - `reports/`: optional compiled thesis or submission drafts
+- `outputs/data/`: generated literature exports and other tabular data products; keep raw downloads and processing notes separate from curated results
 
 ## Working principles and workflow
 
@@ -67,3 +68,12 @@ Keep the existing structure. Prefer useful documentation and small scripts over 
 7. Write results, discussion, and conclusions supported by the outputs.
 
 Prioritize the decisions required by the current research stage. Do not add scope merely because another dataset or technique is available.
+
+## Literature harvesting and scraper rules
+
+- Use documented scholarly APIs or provider export endpoints where possible; do not bypass access controls, CAPTCHAs, robots rules, paywalls, or rate limits.
+- Treat harvested metadata as a discovery aid, not as verified evidence. Preserve the query tier and source URL in the user-facing export; provider and record identifiers may remain internal for deduplication and troubleshooting.
+- Deduplicate records using DOI first, then normalized title and year. Do not silently overwrite an existing literature matrix.
+- Keep the search tiers explicit: Pantaron and nearby local context first, then Philippines, Asia, and global methods. A result's tier is a search strategy label, not proof of geographic relevance.
+- Abstracts may be missing or incomplete. Do not infer methods, findings, affiliations, or USeP connection from title keywords alone.
+- Generated CSVs belong in `outputs/data/`; scripts and configuration belong in `scripts/`. Record query terms and output filenames in the run log or CSV metadata.
