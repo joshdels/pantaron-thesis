@@ -1,211 +1,190 @@
 #!/usr/bin/env python3
-"""Create a data-only HTML literature report from CSV exports in outputs/data."""
+"""Generate the Pantaron research hub from compatible CSV exports."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import html
+import re
 from collections import Counter
 from datetime import date
 from pathlib import Path
 
 
+def clean(value: object) -> str:
+    return str(value or "").strip()
+
+
+def esc(value: object) -> str:
+    return html.escape(clean(value))
+
+
 def read_rows(input_dir: Path) -> tuple[list[dict], list[str]]:
-    rows: list[dict] = []
-    files: list[str] = []
+    rows, files = [], []
     for path in sorted(input_dir.glob("*.csv")):
         files.append(path.name)
         with path.open(encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
-                row["_file"] = path.name
-                rows.append(row)
+                if any(clean(value) for value in row.values()):
+                    row["_file"] = path.name
+                    rows.append(row)
     return rows, files
+
+
+def unique_literature(rows: list[dict]) -> list[dict]:
+    selected: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        if "year publication" not in row or not clean(row.get("title")):
+            continue
+        title = re.sub(r"[^a-z0-9]+", " ", clean(row.get("title")).lower()).strip()
+        key = title, clean(row.get("year publication"))
+        old = selected.get(key)
+        if old is None or (not clean(old.get("abstract")) and clean(row.get("abstract"))):
+            selected[key] = row
+    return sorted(selected.values(), key=lambda r: (clean(r.get("search tier")), clean(r.get("title")).lower()))
 
 
 def values(rows: list[dict], field: str) -> Counter[str]:
     counts: Counter[str] = Counter()
     for row in rows:
-        for value in (row.get(field) or "").split("|"):
-            value = value.strip()
-            if value:
-                counts[value] += 1
+        for value in clean(row.get(field)).split("|"):
+            if value.strip():
+                counts[value.strip()] += 1
     return counts
 
 
-def bar_chart(counts: Counter[str], title: str, limit: int = 12) -> str:
+def chart(counts: Counter[str], title: str, accent: str = "green", limit: int = 12) -> str:
     items = counts.most_common(limit)
     if not items:
-        return f'<section class="chart"><h3>{html.escape(title)}</h3><p class="muted">No values in the supplied CSV files.</p></section>'
-    max_value = max(value for _, value in items)
-    bars = []
-    for label, value in items:
-        percentage = max(3, round(100 * value / max_value))
-        bars.append(
-            '<div class="bar-row">'
-            f'<div class="bar-label" title="{html.escape(label, quote=True)}">{html.escape(label)}</div>'
-            f'<div class="bar-track"><div class="bar-fill" style="width:{percentage}%"></div></div>'
-            f'<div class="bar-value">{value}</div></div>'
+        return f'<article class="chart"><h3>{html.escape(title)}</h3><p class="muted">No values available.</p></article>'
+    largest = max(value for _, value in items)
+    bars = "".join(
+        '<div class="bar"><span title="{0}">{0}</span><i><b class="{2}" style="width:{3}%"></b></i><strong>{1}</strong></div>'.format(
+            html.escape(label), value, accent, max(3, round(value / largest * 100))
         )
-    return f'<section class="chart" aria-label="{html.escape(title)}"><h3>{html.escape(title)}</h3><div class="bar-list">{"".join(bars)}</div></section>'
+        for label, value in items
+    )
+    return f'<article class="chart"><h3>{html.escape(title)}</h3>{bars}</article>'
 
 
 def problem_themes(rows: list[dict]) -> Counter[str]:
     themes = {
         "Forest loss and degradation": ("forest", "deforestation", "logging"),
-        "Watershed and river governance": ("watershed", "headwater", "river-basin", "river basin"),
-        "Indigenous and ancestral-domain governance": ("indigenous", "ancestral", "lumad", "community"),
-        "Mining and extractive pressure": ("mining", "extractive", "tailings", "mercury"),
-        "Drought and water shortage": ("drought", "water shortage", "dry", "el niño"),
-        "Erosion, flooding and sedimentation": ("erosion", "flood", "siltation", "sediment"),
-        "Land conversion and agriculture": ("land conversion", "agriculture", "cultivation", "plantation"),
-        "Protected-area and institutional gaps": ("protected-area", "protected area", "conservation status"),
+        "Watershed and river governance": ("watershed", "headwater", "river basin"),
+        "Indigenous and ancestral domain": ("indigenous", "ancestral", "lumad"),
+        "Mining and extractive pressure": ("mining", "extractive", "tailings"),
+        "Drought and water shortage": ("drought", "water shortage", "el niño"),
+        "Erosion, flooding and sediment": ("erosion", "flood", "siltation", "sediment"),
+        "Land conversion and agriculture": ("land conversion", "agriculture", "plantation"),
         "Water quality and pollution": ("water quality", "pollution", "contamination"),
     }
     counts: Counter[str] = Counter()
     for row in rows:
-        text = " ".join((row.get("problem category", ""), row.get("reported condition", ""), row.get("summary", ""))).lower()
-        for theme, words in themes.items():
-            if any(word in text for word in words):
-                counts[theme] += 1
+        text = " ".join(clean(row.get(k)) for k in ("problem category", "reported condition", "summary")).lower()
+        for label, terms in themes.items():
+            if any(term in text for term in terms):
+                counts[label] += 1
     return counts
 
 
-def card(label: str, value: str) -> str:
-    return f'<div class="card"><div class="card-label">{html.escape(label)}</div><div class="card-value">{html.escape(value)}</div></div>'
+def policy_group(status: str) -> str:
+    value = status.lower()
+    if "bill" in value or "proposal" in value:
+        return "Bill or proposal (not enacted)"
+    if "enacted" in value:
+        return "Enacted national law"
+    if "convention" in value:
+        return "International convention"
+    if "declaration" in value:
+        return "International declaration"
+    return "Other or unspecified"
 
 
-def source_link(row: dict, label_field: str) -> str:
-    label = html.escape((row.get(label_field) or "Untitled").strip())
-    url = (row.get("source url") or "").strip()
-    return (
-        f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener">{label}</a>'
-        if url
-        else label
-    )
+def scope(tier: str) -> str:
+    value = tier.lower()
+    if "pantaron" in value or "local" in value:
+        return "Pantaron / local"
+    if "philippine" in value or "national" in value:
+        return "Philippines"
+    if "asia" in value:
+        return "Asia"
+    if "global" in value or "international" in value:
+        return "International / global"
+    return "Other / unspecified"
+
+
+def link(row: dict, field: str) -> str:
+    label, url = esc(row.get(field)) or "Untitled", clean(row.get("source url"))
+    return f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{label}</a>' if url else label
+
+
+def search(table_id: str, label: str) -> str:
+    return f'<div class="tools"><label for="q-{table_id}">{label}</label><input id="q-{table_id}" data-table="{table_id}" type="search" placeholder="Search this table…"><span data-count="{table_id}"></span></div>'
+
+
+def card(label: str, value: int, note: str) -> str:
+    return f'<article class="card"><small>{label}</small><strong>{value}</strong><span>{note}</span></article>'
 
 
 def make_report(rows: list[dict], files: list[str]) -> str:
-    literature_rows = [
-        row
-        for row in rows
-        if "year publication" in row and (row.get("title") or "").strip()
-    ]
-    problem_rows = [
-        row for row in rows if row.get("_file") == "pantaron-land-water-problems.csv"
-    ]
-    policy_rows = [
-        row for row in rows if row.get("record type") == "policy/legal record"
-    ]
-    method_counts = values(literature_rows, "possible methods used")
-    tier_counts = values(literature_rows, "search tier")
-    year_counts = Counter(
-        (row.get("year publication") or "Unknown").strip() or "Unknown"
-        for row in literature_rows
+    literature = unique_literature(rows)
+    problems = [r for r in rows if r.get("_file") == "pantaron-land-water-problems.csv"]
+    policies = [r for r in rows if clean(r.get("record type")).lower() == "policy/legal record"]
+    reviewed = [r for r in problems if clean(r.get("source type")).lower() == "reviewed source"]
+    leads = [r for r in problems if r not in reviewed]
+    abstracts = sum(bool(clean(r.get("abstract"))) for r in literature)
+
+    def problem_rows(selected: list[dict]) -> str:
+        return "".join(
+            f'<tr><td>{n}</td><td><b>{esc(r.get("problem category"))}</b></td><td>{esc(r.get("reported condition"))}</td>'
+            f'<td>{esc(r.get("relationship to Pantaron"))}</td><td>{esc(r.get("geographic scope"))}</td>'
+            f'<td>{link(r,"source")}<small>{esc(r.get("source date"))}</small></td><td>{esc(r.get("research use"))}</td><td>{esc(r.get("limitations"))}</td></tr>'
+            for n, r in enumerate(selected, 1)
+        ) or '<tr><td colspan="8">No records found.</td></tr>'
+
+    policy_rows = "".join(
+        f'<tr><td>{n}</td><td>{link(r,"title")}</td><td>{esc(r.get("jurisdiction"))}</td>'
+        f'<td><em>{html.escape(policy_group(clean(r.get("legal status"))))}</em><small>{esc(r.get("legal status"))}</small></td>'
+        f'<td>{esc(r.get("summary"))}</td><td>{esc(r.get("evidence status"))}</td></tr>'
+        for n, r in enumerate(policies, 1)
+    ) or '<tr><td colspan="6">No policy records found.</td></tr>'
+
+    literature_rows = "".join(
+        f'<tr><td>{n}</td><td>{esc(r.get("year publication"))}</td><td>{esc(r.get("country")) or "<i>Not supplied</i>"}</td>'
+        f'<td>{link(r,"title")}<small>{esc(r.get("authors"))}</small></td>'
+        f'<td class="abstract">{esc(r.get("abstract")) or "<i>No abstract supplied by provider</i>"}</td>'
+        f'<td>{esc(r.get("possible methods used")) or "<i>No keyword hint</i>"}</td>'
+        f'<td><em>{html.escape(scope(clean(r.get("search tier"))))}</em><small>Tier: {esc(r.get("search tier"))}</small></td></tr>'
+        for n, r in enumerate(literature, 1)
+    ) or '<tr><td colspan="7">No literature records found.</td></tr>'
+
+    methods = values(literature, "possible methods used")
+    policy_counts = Counter(policy_group(clean(r.get("legal status"))) for r in policies)
+    scope_counts = Counter(scope(clean(r.get("search tier"))) for r in literature)
+    top_method = methods.most_common(1)
+    method_sentence = (
+        f'The most frequent metadata hint is <b>{html.escape(top_method[0][0])}</b> ({top_method[0][1]} records). '
+        if top_method else "No method hints are available. "
     )
-    reviewed_problem_rows = [row for row in problem_rows if row.get("source type") == "reviewed source"]
-    discovery_problem_rows = [row for row in problem_rows if row.get("source type") != "reviewed source"]
-    problem_counts = problem_themes(problem_rows)
-    policy_status_counts = values(policy_rows, "legal status")
-    abstract_count = sum(
-        bool((row.get("abstract") or "").strip()) for row in literature_rows
-    )
-    strongest = method_counts.most_common(1)[0] if method_counts else None
-    if strongest:
-        conclusion = (
-            f"Within the supplied metadata, <strong>{html.escape(strongest[0])}</strong> is the most frequently "
-            f"listed possible method ({strongest[1]} record(s)). This is a keyword pattern in the exported titles/abstracts, "
-            "not a verified comparison of method performance or suitability for the Pantaron Range."
-        )
-    else:
-        conclusion = "No possible-method values were present in the supplied CSV files, so no method pattern can be reported."
-    source_list = (
-        "".join(f"<li>{html.escape(name)}</li>" for name in files)
-        or "<li>No CSV files found</li>"
-    )
-    literature_html = []
-    for number, row in enumerate(literature_rows[:100], start=1):
-        literature_html.append(
-            "<tr>"
-            f"<td>{number}</td>"
-            f"<td>{html.escape(row.get('year publication',''))}</td>"
-            f"<td>{html.escape(row.get('country',''))}</td>"
-            f"<td>{source_link(row, 'title')}</td>"
-            f"<td class=\"abstract\">{html.escape(row.get('abstract',''))}</td>"
-            f"<td>{html.escape(row.get('possible methods used',''))}</td>"
-            "</tr>"
-        )
-    literature_table = (
-        "".join(literature_html)
-        or '<tr><td colspan="6">No literature records found.</td></tr>'
-    )
-    def problem_table_rows(selected_rows: list[dict]) -> str:
-        rendered = []
-        for number, row in enumerate(selected_rows, start=1):
-            rendered.append(
-                "<tr>"
-                f"<td>{number}</td><td>{html.escape(row.get('problem category',''))}</td>"
-                f"<td>{html.escape(row.get('reported condition',''))}</td>"
-                f"<td>{html.escape(row.get('relationship to Pantaron',''))}</td>"
-                f"<td>{html.escape(row.get('source date',''))}</td>"
-                f"<td>{source_link(row, 'source')}</td>"
-                f"<td>{html.escape(row.get('limitations',''))}</td>"
-                "</tr>"
-            )
-        return "".join(rendered)
-    problem_table = problem_table_rows(reviewed_problem_rows) or '<tr><td colspan="7">No reviewed problem records found.</td></tr>'
-    discovery_problem_table = problem_table_rows(discovery_problem_rows) or '<tr><td colspan="7">No RSS discovery leads found.</td></tr>'
-    policy_html = []
-    for number, row in enumerate(policy_rows, start=1):
-        policy_html.append(
-            "<tr>"
-            f"<td>{number}</td><td>{source_link(row, 'title')}</td>"
-            f"<td>{html.escape(row.get('jurisdiction',''))}</td>"
-            f"<td>{html.escape(row.get('legal status',''))}</td>"
-            f"<td>{html.escape(row.get('summary',''))}</td>"
-            f"<td>{html.escape(row.get('evidence status',''))}</td>"
-            "</tr>"
-        )
-    policy_table = (
-        "".join(policy_html) or '<tr><td colspan="6">No policy records found.</td></tr>'
-    )
-    literature_card = card("Literature records", str(len(literature_rows))) if literature_rows else ""
     literature_section = ""
-    if literature_rows:
-        literature_section = f"""
-<h2>Observed literature metadata patterns</h2><p>{conclusion}</p>
-<div class="charts">{bar_chart(method_counts, 'Possible methods listed in metadata')}{bar_chart(tier_counts, 'Records by search tier')}{bar_chart(year_counts, 'Publication years', 15)}</div>
-<h2>Literature records</h2><p class="muted">Showing the first {min(100, len(literature_rows))} scholarly metadata records. The CSV files remain the complete data source.</p>
-<div class="table-wrap"><table><thead><tr><th>No.</th><th>Year</th><th>Country</th><th>Title</th><th>Abstract</th><th>Possible methods</th></tr></thead><tbody>{literature_table}</tbody></table></div>"""
-    return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pantaron Research Evidence Report</title><style>
-:root{{--ink:#18222d;--muted:#64748b;--blue:#1769aa;--pale:#eef6fb;--line:#d8e1e8;--bg:#f7fafc}}
-*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}}
-main{{max-width:1720px;margin:auto;padding:52px 42px 72px}}h1{{font-size:40px;line-height:1.15;margin:0 0 14px}}h2{{margin:58px 0 14px;font-size:28px;line-height:1.25}}h3{{margin:0}}.subtitle,.muted{{color:var(--muted);font-size:16px;max-width:1050px}}
-.notice{{background:#fff7df;border-left:4px solid #d69e2e;padding:18px 22px;margin:28px 0;border-radius:7px;max-width:1250px}}
-.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:20px;margin:34px 0 44px}}.card,.chart,.panel{{background:white;border:1px solid var(--line);border-radius:10px;padding:24px;box-shadow:0 2px 8px #0000000a}}
-.card-label{{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.06em}}.card-value{{font-size:34px;font-weight:700;color:var(--blue);margin-top:6px}}
-.charts{{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:24px;margin:22px 0 34px}}.chart h3{{font-size:19px;margin-bottom:22px}}.bar-list{{display:grid;gap:14px}}.bar-row{{display:grid;grid-template-columns:minmax(220px,1.15fr) minmax(180px,2fr) 44px;align-items:center;gap:14px}}.bar-label{{font-size:14px;line-height:1.3;overflow-wrap:anywhere}}.bar-track{{height:14px;background:#e7eff5;border-radius:999px;overflow:hidden}}.bar-fill{{height:100%;min-width:8px;border-radius:999px;background:linear-gradient(90deg,#1769aa,#22a4c8)}}.bar-value{{font-weight:700;color:var(--blue);text-align:right;font-variant-numeric:tabular-nums}}
-table{{border-collapse:separate;border-spacing:0;width:100%;min-width:1180px;background:white;font-size:14px;line-height:1.55}}th,td{{padding:16px 18px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{background:var(--pale);position:sticky;top:0;z-index:1;white-space:nowrap;font-size:13px;text-transform:uppercase;letter-spacing:.035em}}tbody tr:hover{{background:#f8fbfd}}td{{min-width:130px}}td.abstract{{min-width:460px;max-width:760px;white-space:normal}}.table-wrap{{overflow:auto;max-height:780px;margin:22px 0 44px;border:1px solid var(--line);border-radius:10px;background:white;box-shadow:0 2px 8px #00000008}}.table-wrap table th:first-child,.table-wrap table td:first-child{{min-width:58px;width:58px;text-align:center}}a{{color:var(--blue);text-decoration:none;font-weight:600}}a:hover{{text-decoration:underline}}
-details{{margin:24px 0 50px;border:1px solid var(--line);border-radius:10px;background:white}}summary{{cursor:pointer;padding:18px 22px;font-weight:700;color:var(--blue)}}details[open] summary{{border-bottom:1px solid var(--line)}}details .table-wrap{{margin:0;border:0;border-radius:0;box-shadow:none}}code{{background:#eef2f5;padding:2px 5px;border-radius:4px}}footer{{margin-top:32px;color:var(--muted);font-size:13px}}
-@media(max-width:760px){{main{{padding:30px 18px 48px}}h1{{font-size:32px}}h2{{margin-top:44px;font-size:24px}}.charts{{grid-template-columns:1fr}}.bar-row{{grid-template-columns:1fr 48px;gap:7px 12px}}.bar-label{{grid-column:1/-1}}.card-value{{font-size:29px}}}}
-</style></head><body><main>
-<h1>Pantaron Research Evidence Report</h1><p class="subtitle">Generated {date.today().isoformat()} from CSV files in <code>outputs/data/</code>.</p>
-<div class="notice"><strong>Evidence boundary:</strong> Literature metadata, reported problems, and legal records are separate evidence types. Reported conditions are not automatically measured trends or proven causes. Policy relevance does not establish local implementation or enforcement. Verify complete sources before thesis citation.</div>
-<div class="cards">{card('Reviewed problems', str(len(reviewed_problem_rows)))}{card('RSS leads', str(len(discovery_problem_rows)))}{card('Law/policy records', str(len(policy_rows)))}{literature_card}{card('Files read', str(len(files)))}</div>
-<h2>Reported land and water resource problems</h2><p class="muted">Sanitized records distinguish direct Pantaron reports from linked river-basin, downstream, project, and historical context. Limitations should remain attached to every claim.</p>
-<div class="charts">{bar_chart(problem_counts, 'Problem themes across reviewed sources and discovery leads')}</div>
-<h3>Reviewed sources</h3><p class="muted">These records received source-level review and are shown first. Their stated limitations still apply.</p>
-<div class="table-wrap"><table><thead><tr><th>No.</th><th>Problem</th><th>Reported condition</th><th>Relationship to Pantaron</th><th>Date</th><th>Source</th><th>Limitations</th></tr></thead><tbody>{problem_table}</tbody></table></div>
-<details><summary>Show {len(discovery_problem_rows)} unverified RSS discovery leads</summary><div class="table-wrap"><table><thead><tr><th>No.</th><th>Problem</th><th>Reported condition</th><th>Relationship to Pantaron</th><th>Date</th><th>Source</th><th>Limitations</th></tr></thead><tbody>{discovery_problem_table}</tbody></table></div></details>
-<h2>Applicable laws and policy initiatives</h2><p class="muted">This includes enacted national laws, a Pantaron-specific bill record, and international instruments. A bill must not be described as enacted law.</p>
-<div class="charts">{bar_chart(policy_status_counts, 'Policy records by legal status')}</div>
-<div class="table-wrap"><table><thead><tr><th>No.</th><th>Law or policy</th><th>Jurisdiction</th><th>Status</th><th>Relevance summary</th><th>Evidence status</th></tr></thead><tbody>{policy_table}</tbody></table></div>
+    if literature:
+        literature_section = f'''<section id="methods" class="block"><div class="heading"><span class="kicker">03 · METHODS &amp; RRL</span><h2>Methods and related literature</h2><p>{method_sentence}These are keyword-based discovery hints, not verified descriptions of study procedures. Appraise the full paper before adoption.</p></div><div class="charts">{chart(methods,"Possible methods in metadata","teal")}{chart(scope_counts,"Coverage of the search strategy","teal")}{chart(values(literature,"search tier"),"Records by search tier","teal")}{chart(Counter(clean(r.get("year publication")) or "Unknown" for r in literature),"Publication years","teal")}</div>{search("literature-table","Find a study or method")}<div class="wrap rrl"><table id="literature-table"><thead><tr><th>No.</th><th>Year</th><th>Country</th><th>Study and authors</th><th>Abstract</th><th>Possible methods</th><th>Search coverage</th></tr></thead><tbody>{literature_rows}</tbody></table></div></section>'''
+    sources = "".join(f'<li><code>{html.escape(name)}</code></li>' for name in files)
+
+    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Joshua De Leon | Pantaron Research Hub</title><style>
+:root{{--ink:#17241f;--muted:#617069;--forest:#174f3b;--teal:#168797;--gold:#d5a93d;--paper:#f4f6f1;--line:#d8ded8;--pale:#eaf2ed}}*{{box-sizing:border-box}}html{{scroll-behavior:smooth;scroll-padding-top:75px}}body{{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 system-ui,sans-serif}}a{{color:#176c50;text-underline-offset:3px}}.top{{position:sticky;top:0;z-index:5;background:#103d2ff2;color:white;padding:14px max(20px,calc((100% - 1500px)/2));display:flex;justify-content:space-between;gap:20px;backdrop-filter:blur(10px)}}nav a{{color:#e6f4ed;text-decoration:none;margin-left:18px;font-size:13px}}.hero{{background:radial-gradient(circle at 85% 15%,#2c7d61 0,transparent 27%),linear-gradient(130deg,#10382b,#174f3b);color:white}}.hero>div{{max-width:1500px;margin:auto;padding:70px 40px 60px;display:grid;grid-template-columns:2fr 1fr;gap:50px;align-items:end}}.kicker{{color:#86d0b4;text-transform:uppercase;letter-spacing:.15em;font-size:12px;font-weight:800}}h1,h2{{font-family:Georgia,serif;font-weight:600;letter-spacing:-.025em}}h1{{font-size:clamp(42px,6vw,76px);line-height:1;margin:12px 0 22px}}.hero p{{color:#d7e9e1;font-size:18px;max-width:850px}}.owner{{border-left:1px solid #ffffff55;padding-left:25px}}.owner b{{display:block;font-size:20px}}main{{max-width:1500px;margin:auto;padding:32px 40px 75px}}.notice{{background:#fff8e6;border:1px solid #ead69b;border-left:5px solid var(--gold);padding:17px 20px;border-radius:10px}}.cards{{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin:26px 0 45px}}.card,.chart{{background:white;border:1px solid var(--line);border-radius:13px;box-shadow:0 4px 15px #173d2f0a}}.card{{padding:19px}}.card small{{display:block;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}}.card strong{{display:block;font:600 34px Georgia,serif;color:var(--forest);margin:6px 0}}.card span{{font-size:12px;color:var(--muted)}}section.block{{padding:45px 0 25px;border-top:1px solid var(--line)}}.heading{{display:grid;grid-template-columns:.7fr 1.3fr;gap:45px;align-items:end;margin-bottom:25px}}.heading .kicker{{grid-column:1/-1;color:#247357}}h2{{font-size:clamp(31px,3.5vw,45px);line-height:1.1;margin:0}}.heading p{{color:var(--muted);font-size:16px;margin:0}}.charts{{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0 32px}}.chart{{padding:23px}}.chart h3{{margin:0 0 18px}}.bar{{display:grid;grid-template-columns:minmax(150px,1fr) minmax(100px,1.5fr) 35px;gap:11px;align-items:center;margin:11px 0;font-size:13px}}.bar i{{height:10px;background:#e4ebe6;border-radius:99px;overflow:hidden}}.bar b{{display:block;height:100%;background:linear-gradient(90deg,var(--forest),#64aa86)}}.bar b.gold{{background:linear-gradient(90deg,#a87714,var(--gold))}}.bar b.teal{{background:linear-gradient(90deg,var(--teal),#68bdbe)}}.bar strong{{text-align:right}}.tools{{display:flex;align-items:center;gap:12px;margin:12px 0}}.tools label{{font-weight:700}}.tools input{{width:min(580px,100%);padding:10px 12px;border:1px solid #bdc9c1;border-radius:8px;font:inherit}}.tools span{{color:var(--muted);font-size:13px}}.wrap{{overflow:auto;max-height:740px;border:1px solid var(--line);border-radius:11px;background:white}}.rrl{{max-height:900px}}table{{border-collapse:separate;border-spacing:0;width:100%;min-width:1280px;font-size:13.5px}}th,td{{padding:14px 15px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{position:sticky;top:0;z-index:2;background:var(--pale);font-size:11px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}}tbody tr:hover{{background:#f8fbf8}}td:first-child,th:first-child{{width:52px;text-align:center;color:var(--muted)}}td.abstract{{min-width:430px;max-width:680px}}td small{{display:block;color:var(--muted);margin-top:6px}}td em{{display:inline-block;font-style:normal;font-size:11px;font-weight:700;background:#e5f2eb;color:var(--forest);padding:3px 8px;border-radius:99px}}td i{{color:#87928d}}details{{margin-top:16px;background:white;border:1px solid var(--line);border-radius:11px}}summary{{cursor:pointer;padding:16px 19px;font-weight:700;color:var(--forest)}}details .wrap{{border:0;border-radius:0}}.sources{{padding:22px;margin-top:45px}}footer{{max-width:1500px;margin:auto;padding:0 40px 42px;color:var(--muted);font-size:13px}}code{{background:#e3e9e4;padding:2px 5px;border-radius:4px}}
+@media(max-width:900px){{.hero>div,.heading{{grid-template-columns:1fr}}.cards{{grid-template-columns:repeat(2,1fr)}}.charts{{grid-template-columns:1fr}}}}@media(max-width:620px){{.top{{align-items:flex-start;flex-direction:column}}nav a{{margin:0 12px 0 0}}.hero>div,main{{padding-left:19px;padding-right:19px}}.cards{{gap:8px}}.tools{{align-items:flex-start;flex-direction:column}}.bar{{grid-template-columns:1fr 35px}}.bar>span{{grid-column:1/-1}}}}
+</style></head><body><header class="top"><b>Pantaron Research Hub</b><nav><a href="#problems">Problems</a><a href="#policies">Policies</a><a href="#methods">Methods &amp; RRL</a><a href="#sources">Sources</a></nav></header>
+<div class="hero"><div><div><span class="kicker">Land &amp; water resources · evidence screening</span><h1>Pantaron Research Hub</h1><p>A traceable workspace for screening reported problems, applicable policy records, and remote-sensing, GIS, and water-resource methods—from Pantaron and Philippine context toward wider methodological literature.</p></div><div class="owner"><b>Joshua De Leon</b>Thesis research workspace<br>University of Southeastern Philippines context<br><small>Generated {date.today().isoformat()}</small></div></div></div>
+<main><div class="notice"><b>Screening aid, not thesis findings.</b> Reported problems, legal records, and scholarly metadata carry different evidentiary weight. Verify complete sources before citation or method adoption.</div>
+<div class="cards">{card("Reviewed problems",len(reviewed),"source-level review")}{card("Discovery leads",len(leads),"still unverified")}{card("Policy records",len(policies),"statuses kept distinct")}{card("RRL records",len(literature),"unique title + year")}{card("With abstracts",abstracts,"provider supplied")}</div>
+<section id="problems" class="block"><div class="heading"><span class="kicker">01 · PROBLEMS</span><h2>Reported land and water resource problems</h2><p>Geographic relationship and limitations stay attached so direct Pantaron reports are not generalized from downstream, nearby, project-specific, or historical evidence.</p></div><div class="charts">{chart(problem_themes(problems),"Problem themes in the reading list")}{chart(values(problems,"relationship to Pantaron"),"Relationship of reports to Pantaron")}</div>{search("problems-table","Find a problem or place")}<div class="wrap"><table id="problems-table"><thead><tr><th>No.</th><th>Problem</th><th>Reported condition</th><th>Relationship</th><th>Scope</th><th>Source</th><th>Research use</th><th>Limitations</th></tr></thead><tbody>{problem_rows(reviewed)}</tbody></table></div><details><summary>Show {len(leads)} unverified RSS discovery leads</summary><div class="wrap"><table><thead><tr><th>No.</th><th>Problem</th><th>Reported condition</th><th>Relationship</th><th>Scope</th><th>Source</th><th>Research use</th><th>Limitations</th></tr></thead><tbody>{problem_rows(leads)}</tbody></table></div></details></section>
+<section id="policies" class="block"><div class="heading"><span class="kicker">02 · POLICIES</span><h2>Enacted laws, proposals, and policy instruments</h2><p>Status labels separate enacted Philippine laws from bills or proposals and from international conventions or declarations. Recheck time-sensitive status before thesis submission.</p></div><div class="charts">{chart(policy_counts,"Policy records by legal status","gold")}{chart(values(policies,"jurisdiction"),"Policy records by jurisdiction","gold")}</div>{search("policy-table","Find a law, bill, or instrument")}<div class="wrap"><table id="policy-table"><thead><tr><th>No.</th><th>Law or policy</th><th>Jurisdiction</th><th>Status</th><th>Relevance summary</th><th>Evidence status</th></tr></thead><tbody>{policy_rows}</tbody></table></div></section>
 {literature_section}
-<h2>Files included</h2><ul>{source_list}</ul>
-<footer>Use this as a screening aid. Verify records against publisher or institutional sources before citing them in the thesis.</footer>
-</main></body></html>"""
+<details id="sources" class="sources"><summary>CSV files included in this build ({len(files)})</summary><ul>{sources}</ul></details></main><footer>Generated by <code>scripts/report_generator.py</code>. Verify records against publisher, repository, legislative, or agency sources before citing them.</footer>
+<script>document.querySelectorAll('.tools input').forEach(input=>{{const table=document.getElementById(input.dataset.table),rows=[...table.tBodies[0].rows],count=document.querySelector(`[data-count="${{input.dataset.table}}"]`);function update(){{const q=input.value.trim().toLowerCase();let shown=0;rows.forEach(row=>{{const yes=!q||row.textContent.toLowerCase().includes(q);row.hidden=!yes;if(yes)shown++}});count.textContent=`${{shown}} of ${{rows.length}} records`}}input.addEventListener('input',update);update()}});</script></body></html>'''
 
 
 def main() -> None:

@@ -22,6 +22,7 @@ help:
 scrape:
 	$(MAKE) scrape-openalex
 	$(MAKE) scrape-semantic OUTPUT=outputs/data/semantic-scholar-literature.csv
+	$(MAKE) scrape-web
 
 scrape-openalex:
 	$(PYTHON) scripts/openalex_scraper_lit.py \
