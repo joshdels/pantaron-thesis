@@ -1,35 +1,84 @@
 # Pantaron Range Land and Water Resources Research
 
-A lightweight thesis workspace for a proposed remote sensing and GIS assessment of land cover, terrain, drainage, and rainfall in selected catchments associated with the Pantaron Range, Mindanao, Philippines.
+A lightweight thesis workspace for assessing land and water-resource conditions in selected catchments associated with the Pantaron Range, Mindanao, Philippines. The project combines scholarly review, reported-problem and policy-source discovery, and a proposed remote-sensing/GIS assessment.
 
-The research is being developed in a University of Southeastern Philippines (USeP) academic context. The current program-specific thesis format remains to be confirmed.
+The research is being developed in a University of Southeastern Philippines (USeP) context. The exact study boundary, catchments, analysis periods, adviser requirements, and program-specific thesis format remain to be confirmed.
 
-## Start here
+## Restart here after time away
 
-Read [AGENTS.md](AGENTS.md) for research and evidence rules, then follow the [research plan](docs/research-plan.md) for proposed objectives, Chapters 1–5, candidate datasets, verified starting references, and completion milestones.
+1. Read `AGENTS.md` for evidence, academic-writing, remote-assessment, and harvesting rules.
+2. Read `docs/research-plan.md` for the proposed objectives, scope, methods, and unresolved decisions.
+3. Run `make syntax` to check the scripts.
+4. Inspect the current CSV files in `outputs/data/`; do not assume every row is verified evidence.
+5. Run `make report`, then open `index.html`.
+6. Review the current legal status and recent problem sources before using them in thesis prose.
 
-The plan includes USeP-affiliated research examples with source links and explains their relevance and limits. They inform the proposal; they do not establish results for Pantaron.
+## Current evidence layers
 
-## Current status
+The workspace deliberately separates three source types:
 
-The project is at the scope-definition and literature-review stage. The study boundary, catchments, analysis periods, and final methods are unresolved. No land or water assessment results have been generated.
+- **Scholarly metadata:** papers discovered through OpenAlex, Crossref, and Semantic Scholar. Metadata and abstracts are leads until the publication is appraised.
+- **Reported Pantaron problems:** news, government, planning, project, and civil-society sources concerning forest, land, water, watershed, mining, drought, erosion, flooding, and governance issues.
+- **Policy and law:** Pantaron-specific proposals, applicable Philippine laws, and selected international instruments. Relevance does not prove local implementation or enforcement.
 
-The proposed work will produce a catchment-level baseline and identify areas requiring further investigation. Claims about dependable water supply, groundwater yield, or water quality require additional evidence beyond the initial mapping scope.
+The report distinguishes reviewed problem sources from unverified RSS leads. Search snippets and RSS descriptions must not be cited as if full articles were reviewed.
 
-## Workspace
+## Main commands
 
-- `docs/`: research planning, methods, and chapter drafts
-- `literature/`: source records and the [literature matrix](literature/literature-matrix.csv)
-- `scripts/`: data preparation and analysis
-- `outputs/`: generated maps, charts, and tables
-- `data/`: add datasets when needed
-- `reports/`: optional compiled thesis drafts
+```bash
+make help
+make syntax
+make scrape-openalex
+make scrape-semantic
+make scrape-web
+make report
+```
 
-## Next steps
+For a fresh web/RSS run that ignores cached responses:
 
-1. Confirm the USeP program requirements and select a defensible Pantaron catchment study area.
-2. Appraise the linked research papers and populate the literature matrix.
-3. Verify imagery, elevation, rainfall, and independent reference-data coverage.
-4. Run a small pilot before committing to the final methods and study periods.
+```bash
+python3 scripts/pantaron_web_harvester.py --provider auto --refresh
+```
 
-Keep source metadata and uncertainties visible, preserve original data, and expand the workspace only as the research requires.
+For a slower two-provider discovery run:
+
+```bash
+python3 scripts/pantaron_web_harvester.py \
+  --provider both \
+  --per-query 30 \
+  --delay 10 \
+  --refresh
+```
+
+## Important outputs
+
+- `outputs/data/pantaron-land-water-problems.csv`: sanitized problem-focused table with research use and limitations.
+- `outputs/data/pantaron-web-discovery.csv`: reviewed problem and policy baselines plus live RSS discoveries.
+- `outputs/data/pantaron-web-sources-curated.csv`: earlier manually curated web-source export retained for traceability.
+- `outputs/data/pantaron-rrl.csv`: OpenAlex/Crossref scholarly metadata output.
+- `outputs/data/semantic-scholar-literature.csv`: Semantic Scholar metadata output.
+- `index.html`: generated evidence report. Run `make report` to rebuild it.
+
+Do not edit `index.html` for permanent changes. Update `scripts/report_generator.py` and regenerate the report.
+
+## Workspace map
+
+- `docs/`: research plan, methods, notes, and harvesting documentation
+- `literature/`: literature matrix and critical-review records
+- `scripts/`: harvesters and report generator; see `scripts/README.md`
+- `outputs/data/`: generated CSV exports and discovery tables
+- `outputs/`: generated maps, charts, and other results
+- `data/`: source datasets added only when required
+- `reports/`: optional thesis or submission drafts
+
+## Evidence cautions
+
+- Pantaron is a mountain range, not one watershed. Keep range boundaries and catchments distinct.
+- A reported problem is not automatically a measured trend, proven cause, or range-wide condition.
+- Remote indicators cannot by themselves establish usable water supply, groundwater yield, water quality, erosion rate, land ownership, or community preference.
+- A proposed bill is not an enacted law. Recheck official legislative records before submission.
+- Preserve uncertainty, source scope, date, and review status in every synthesis.
+
+## Current research stage
+
+The project remains at scope definition, source review, and feasibility assessment. No completed land/water analysis is claimed. The next substantive steps are to select defensible catchments and boundaries, appraise the strongest sources in full, verify candidate datasets and reference observations, and run a small terrain/land-cover/rainfall pilot.
