@@ -45,6 +45,16 @@ Develop a feasible, evidence-based land and water resources engineering study us
 - Avoid causal claims from correlations or map overlays alone. Explain the basis and sensitivity of any screening thresholds or weights.
 - Recognize the limits of remote observations for local and Indigenous knowledge. Do not invent community consultation or endorsement.
 
+## Land and water resources management framework
+
+- Organize the thesis around management questions, not around available satellite products. Each indicator must identify a decision use, a validation source, and a limit.
+- Treat the land-resource component as land-cover condition, vegetation/forest configuration, terrain constraints, erosion susceptibility where inputs permit, and land-management zones. Do not infer soil fertility, tenure, land capability, or actual management practice from imagery alone.
+- Treat the water-resource component as catchment and drainage structure, rainfall amount and seasonality, surface-water occurrence where observable, and targeted field measurements where feasible. Do not equate rainfall or drainage density with dependable water supply.
+- Integrate land and water through explicit catchment pathways: land cover and slope influence runoff and erosion susceptibility; drainage connects upstream conditions to downstream receptors. Describe these as hypotheses or screening relationships until evaluated.
+- Field validation should be risk-based and targeted to uncertain land-cover classes, erosion indicators, stream condition, and selected water-quality parameters. Record access, calibration, sampling time, weather, coordinates, and representativeness.
+- A management output must specify the responsible user and action, such as protection, restoration, monitoring, agricultural conservation, riparian management, or additional hydrologic investigation. Avoid a single opaque suitability score.
+- RUSLE or another erosion model is optional, not automatic. Add it only when rainfall erosivity, soil erodibility, topographic, cover-management, and support-practice inputs are defensible and validation/uncertainty can be reported.
+
 ## Repository structure
 
 - `docs/`: research plan, methods, notes, and chapter drafts
@@ -54,6 +64,17 @@ Develop a feasible, evidence-based land and water resources engineering study us
 - `data/`: datasets added only when needed; preserve originals and document processing
 - `reports/`: optional compiled thesis or submission drafts
 - `outputs/data/`: generated literature exports and other tabular data products; keep raw downloads and processing notes separate from curated results
+- `reports/outline-defense-YYYY-MM-DD/`: dated proposal manuscripts, defense decks, methods summaries, and submission-readiness notes; never overwrite an earlier dated package
+
+## Google Drive integration and proposal deliverables
+
+- The active Drive locations are stored locally in `.env`; use `PANTARON_DRIVE_PROJECT_URL` and `PANTARON_DRIVE_FINAL_PACKAGE_URL`. Never place Drive file IDs or URLs in tracked files.
+- Treat Drive as a delivery and collaboration surface, not as the sole source of truth. Keep a matching dated package in `reports/` and record the corresponding Drive links in the package README.
+- Never delete or overwrite existing Drive or repository files. Create a new dated folder for each defense/submission package.
+- Use the current files in the Drive `Formats/` folder as formatting evidence. Record the exact file title and review date; do not assume one college's sample is binding on another program.
+- For the current outline-defense stage, prepare one Chapters 1–3 manuscript through `MATERIALS AND METHODS`, one outline-defense presentation, one methods summary, and one gaps/next-steps checklist.
+- Preserve explicit placeholders for unverified student, adviser, program, campus, approval, schedule, catchment, outlet, and dataset-period details.
+- Upload editable DOCX/PPTX deliverables and, when useful, native Google Docs/Slides copies. Verify created files and links after upload.
 
 ## Working principles and workflow
 

@@ -22,10 +22,11 @@ FIELDS = [
     "possible methods used", "search tier", "source url",
 ]
 TIERS = {
-    "pantaron": "Pantaron Mountain Range",
-    "philippines": "Philippines GIS remote sensing watershed land water resources",
-    "asia": "Asia GIS remote sensing watershed land water resources",
-    "global": "GIS remote sensing watershed land water resources",
+    "pantaron-local-context": "Pantaron Mountain Range land water watershed forest soil river resource management",
+    "philippines-land-methods": "Philippines remote sensing GIS land cover forest fragmentation land capability soil erosion",
+    "philippines-water-methods": "Philippines watershed rainfall drainage surface water water quality remote sensing GIS",
+    "asia-integrated-methods": "Asia integrated land water resources management remote sensing GIS catchment validation",
+    "global-validation-methods": "remote sensing GIS land water resource assessment accuracy field validation uncertainty",
 }
 METHODS = (
     ("remote sensing", "remote sensing"), ("gis", "GIS"), ("sentinel", "Sentinel"),
@@ -38,6 +39,11 @@ METHODS = (
     ("precipitation", "rainfall analysis"), ("hydrologic", "hydrologic modeling"),
     ("drainage", "drainage analysis"), ("digital elevation", "DEM terrain analysis"),
     ("change detection", "change detection"),
+    ("forest fragmentation", "forest-fragmentation analysis"),
+    ("land capability", "land-capability evaluation"),
+    ("soil erosion", "erosion-risk assessment"), ("rusle", "RUSLE erosion-risk modeling"),
+    ("water quality", "water-quality assessment"),
+    ("field validation", "field validation"), ("ground truth", "field validation"),
 )
 
 

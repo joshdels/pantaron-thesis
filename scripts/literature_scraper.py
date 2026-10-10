@@ -43,14 +43,15 @@ EXCLUDED_TITLE_PATTERNS = (
 )
 
 DEFAULT_QUERY = (
-    "Pantaron OR Philippines GIS remote sensing land water resources "
-    "catchment watershed rainfall land cover drainage"
+    "Pantaron OR Philippines land and water resources management remote sensing GIS "
+    "land cover forest fragmentation land capability soil erosion watershed rainfall drainage water quality"
 )
 TIERS = {
-    "pantaron": "Pantaron",
-    "philippines": "Philippines GIS remote sensing watershed rainfall land cover drainage",
-    "asia": "Asia GIS remote sensing watershed rainfall land cover drainage",
-    "global": "GIS remote sensing watershed rainfall land cover drainage",
+    "pantaron-local-context": "Pantaron Mountain Range land water watershed forest soil river resource management",
+    "philippines-land-methods": "Philippines remote sensing GIS land cover forest fragmentation land capability soil erosion",
+    "philippines-water-methods": "Philippines watershed rainfall drainage surface water water quality remote sensing GIS",
+    "asia-integrated-methods": "Asia integrated land water resources management remote sensing GIS catchment validation",
+    "global-validation-methods": "remote sensing GIS land water resource assessment accuracy field validation uncertainty",
 }
 
 
@@ -141,6 +142,13 @@ METHOD_HINTS = (
     ("catchment", "catchment analysis"), ("rainfall", "rainfall analysis"),
     ("precipitation", "rainfall analysis"), ("hydrologic", "hydrologic modeling"),
     ("change detection", "change detection"),
+    ("forest fragmentation", "forest-fragmentation analysis"),
+    ("land capability", "land-capability evaluation"),
+    ("soil erosion", "erosion-risk assessment"),
+    ("rusle", "RUSLE erosion-risk modeling"),
+    ("water quality", "water-quality assessment"),
+    ("field validation", "field validation"),
+    ("ground truth", "field validation"),
 )
 
 

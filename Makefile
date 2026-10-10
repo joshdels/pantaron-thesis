@@ -1,7 +1,7 @@
 .PHONY: help scrape scrape-openalex scrape-semantic scrape-web report syntax venv uv-sync
 
 PYTHON ?= python3
-QUERY ?= Pantaron Pantaron Mountain Range GIS remote sensing land cover land use watershed catchment hydrology hydroclimate rainfall drainage DEM terrain water resources evaluation assessment analysis
+QUERY ?= Pantaron Mountain Range land and water resources management remote sensing GIS land cover forest fragmentation land capability soil erosion watershed catchment rainfall drainage surface water water quality field validation
 OUTPUT ?= outputs/data/pantaron-rrl.csv
 PER_TIER ?= 200
 PROVIDER ?= both

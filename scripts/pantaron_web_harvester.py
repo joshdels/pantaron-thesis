@@ -41,8 +41,10 @@ QUERIES = {
     # long Boolean expressions even though ordinary search shows results.
     "pantaron-direct": '"Pantaron Mountain Range"',
     "pantaron-forest": 'Pantaron forest logging deforestation',
+    "pantaron-land-condition": 'Pantaron land cover soil erosion agriculture forest fragmentation',
     "pantaron-mining-land": 'Pantaron mining land ancestral domain',
     "pantaron-water": 'Pantaron watershed river water Bukidnon',
+    "pantaron-water-management": 'Pantaron river basin water supply irrigation water quality management',
     "pantaron-hazards": 'Pantaron drought flood erosion siltation',
     "pantaron-policy": 'Pantaron protected area national park bill',
 }
@@ -59,6 +61,9 @@ ISSUE_WORDS = {
     "Indigenous/community governance": ("lumad", "indigenous", "ancestral", "community", "fpic"),
     "biodiversity/wildlife": ("biodiversity", "wildlife", "endemic", "habitat"),
     "climate adaptation": ("climate", "adaptation", "el niño"),
+    "soil/land capability": ("soil", "land capability", "land suitability", "soil fertility"),
+    "forest fragmentation/restoration": ("fragmentation", "restoration", "reforestation", "forest corridor"),
+    "water allocation/irrigation": ("irrigation", "water allocation", "water supply", "abstraction"),
 }
 
 # Reviewed official sources. Recheck time-sensitive bill status before thesis submission.
